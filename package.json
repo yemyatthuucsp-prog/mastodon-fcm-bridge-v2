@@ -1,0 +1,19 @@
+{
+  "name": "mastodon-push-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@vercel/kv": "^3.0.0",
+    "firebase-admin": "^13.5.0",
+    "http_ece": "^1.2.1",
+    "uuid": "^13.0.0",
+    "web-push": "^3.6.7"
+  }
+}
