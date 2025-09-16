@@ -129,7 +129,7 @@ export default async function handler(req, res) {
 
     const fcmMessage = {
       notification: {
-        title: "Qlub",
+        title: "Patchwork",
         body: notificationData.title || "You have a new notification",
       },
       token: fcmToken,
