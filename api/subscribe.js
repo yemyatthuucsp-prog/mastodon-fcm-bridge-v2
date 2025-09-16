@@ -65,6 +65,8 @@ export default async function handler(req, res) {
     const host = process.env.VERCEL_URL || req.headers.host;
     const webhookUrl = `https://${host}/api/notify?id=${subscriptionId}`;
 
+    console.log("webhookUrl::", webhookUrl);
+
     // 5️⃣ Register webhook with the user's Mastodon instance dynamically
     // ✨ CHANGED: The Mastodon API URL is now built dynamically
 
