@@ -67,6 +67,9 @@ export default async function handler(req, res) {
 
     // 5️⃣ Register webhook with the user's Mastodon instance dynamically
     // ✨ CHANGED: The Mastodon API URL is now built dynamically
+
+    console.log("instanceName::", `${cleanInstance}/api/v1/push/subscription`);
+
     const mastodonResponse = await fetch(
       `${cleanInstance}/api/v1/push/subscription`,
       {
