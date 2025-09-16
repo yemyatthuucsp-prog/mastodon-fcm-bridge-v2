@@ -63,7 +63,7 @@ export default async function handler(req, res) {
 
     // 4️⃣ Construct the webhook URL
     const host = process.env.VERCEL_URL || req.headers.host;
-    const webhookUrl = `https://mastodon-fcm-bridge-v2.vercel.app/api/notify?id=${subscriptionId}`;
+    const webhookUrl = `https://mastodon-fcm-bridge-beta.vercel.app/api/notify?id=${subscriptionId}`;
 
     console.log("webhookUrl::", webhookUrl);
 
