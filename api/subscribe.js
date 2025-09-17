@@ -2,7 +2,7 @@
 import { kv } from "@vercel/kv";
 import { randomBytes, createECDH } from "crypto";
 
-// Helper to encode keys in URL-safe Base64
+// Helper to encode keys in URL-safe Base64 (no changes here)
 function toUrlSafeBase64(buffer) {
   return buffer
     .toString("base64")
@@ -19,58 +19,59 @@ export default async function handler(req, res) {
   }
 
   try {
-    // ✨ CHANGED: Added 'mastodonInstance' to the request body
     const { fcmToken, mastodonToken, mastodonInstance } = req.body || {};
 
-    // ✨ CHANGED: Updated validation to require 'mastodonInstance'
     if (!fcmToken || !mastodonToken || !mastodonInstance) {
       return res.status(400).json({
         error: "fcmToken, mastodonToken, and mastodonInstance are required.",
       });
     }
 
-    // Clean up the instance URL to ensure it has a protocol and no trailing slash
+    // ✨ NEW: Check for an existing subscription using the FCM token
+    const fcmKey = `fcm:${fcmToken}`;
+    const existingSubscriptionId = await kv.get(fcmKey);
+
+    if (existingSubscriptionId) {
+      console.log(
+        `Found existing subscription for FCM token: ${existingSubscriptionId}`
+      );
+      // Optional: You could fetch the full subscription data to verify it's still valid
+      const subData = await kv.get(existingSubscriptionId);
+      if (subData) {
+        return res.status(200).json({
+          message: "Subscription already exists.",
+          subscriptionId: existingSubscriptionId,
+        });
+      }
+    }
+    // ✨ END NEW
+
+    // --- If no subscription exists, proceed with creation ---
+
+    // Clean up the instance URL (no changes here)
     let cleanInstance = mastodonInstance.trim();
     if (!cleanInstance.startsWith("http")) {
       cleanInstance = `https://${cleanInstance}`;
     }
     cleanInstance = cleanInstance.replace(/\/$/, "");
 
-    // 1️⃣ Generate a unique subscription ID
     const subscriptionId = uuidv4();
-
-    // 2️⃣ Generate correct Web Push subscription keys
     const ecdh = createECDH("prime256v1");
     ecdh.generateKeys();
     const publicKey = ecdh.getPublicKey();
     const privateKey = ecdh.getPrivateKey();
     const authSecret = randomBytes(16);
-    console.log(`Generated keys for subscription ID: ${subscriptionId}`);
-    console.log(`privateKey: ${privateKey}`);
 
-    // 3️⃣ Store mapping in Vercel KV, now including the instance URL
     const subscriptionData = {
       fcmToken,
-      mastodonInstance: cleanInstance, // ✨ ADDED: Store the Mastodon instance URL
+      mastodonInstance: cleanInstance,
       keys: {
         privateKey: privateKey.toString("base64"),
         auth: authSecret.toString("base64"),
       },
     };
-    console.log("KV_REST_API_URL:", process.env.KV_REST_API_URL);
-    console.log("KV_REST_API_TOKEN exists:", process.env.KV_REST_API_TOKEN);
-    await kv.set(subscriptionId, subscriptionData, { ex: 60 * 60 * 24 * 30 }); // 30 days
 
-    // 4️⃣ Construct the webhook URL
-    const host = process.env.VERCEL_URL || req.headers.host;
     const webhookUrl = `https://mastodon-fcm-bridge-beta.vercel.app/api/notify?id=${subscriptionId}`;
-
-    console.log("webhookUrl::", webhookUrl);
-
-    // 5️⃣ Register webhook with the user's Mastodon instance dynamically
-    // ✨ CHANGED: The Mastodon API URL is now built dynamically
-
-    console.log("instanceName::", `${cleanInstance}/api/v1/push/subscription`);
 
     const mastodonResponse = await fetch(
       `${cleanInstance}/api/v1/push/subscription`,
@@ -102,18 +103,24 @@ export default async function handler(req, res) {
     );
 
     if (!mastodonResponse.ok) {
-      const errorData = await mastodonResponse.text();
-      console.error("Mastodon API responded with error:", errorData);
-      await kv.del(subscriptionId);
-      return res.status(500).json({
-        error: "Mastodon API error",
-        details: errorData,
-      });
+        const errorData = await mastodonResponse.text();
+        console.error("Mastodon API responded with error:", errorData);
+        return res.status(500).json({
+            error: "Mastodon API error",
+            details: errorData,
+        });
     }
+    
+    // ✨ NEW: Store the subscription data AND the lookup keys in KV
+    const thirtyDaysInSeconds = 60 * 60 * 24 * 30;
+    const fcmKeyLookup = `sub_id:${subscriptionId}`;
 
-    console.log(
-      `Mastodon subscription created successfully for instance: ${cleanInstance}`
-    );
+    await kv.set(subscriptionId, subscriptionData, { ex: thirtyDaysInSeconds });
+    await kv.set(fcmKey, subscriptionId, { ex: thirtyDaysInSeconds }); // fcmToken -> subscriptionId
+    await kv.set(fcmKeyLookup, fcmKey, { ex: thirtyDaysInSeconds }); // subscriptionId -> fcmToken (for easy deletion)
+
+
+    console.log(`Mastodon subscription created successfully for instance: ${cleanInstance}`);
     return res.status(200).json({
       message: "Subscription created successfully.",
       subscriptionId,
