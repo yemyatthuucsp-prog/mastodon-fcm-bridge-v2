@@ -15,7 +15,7 @@ export default async function handler(req, res) {
           "subscriptionId, mastodonToken, and mastodonInstance are required.",
       });
     }
-
+    const subData = await kv.get(subscriptionId);
     // 1️⃣ Attempt to remove the push subscription from the Mastodon instance
     try {
       const mastodonResponse = await fetch(
@@ -47,22 +47,12 @@ export default async function handler(req, res) {
       );
       // We still proceed to delete our KV data.
     }
-
-    // 2️⃣ Delete the subscription data from Vercel KV
-    // We create a key to find our secondary index.
-    const fcmKeyLookup = `sub_id:${subscriptionId}`;
-    const fcmKey = await kv.get(fcmKeyLookup);
-
-    if (fcmKey) {
-        await kv.del(fcmKey); // Delete the fcmToken -> subscriptionId mapping
-        await kv.del(fcmKeyLookup); // Delete the subscriptionId -> fcmToken mapping
+    if (subData) {
+      const lookupKey = `sublookup:${subData.fcmToken}:${subData.mastodonInstance}`;
+      await kv.del(lookupKey); // Delete the fcmToken:instance -> subscriptionId mapping
     }
-    await kv.del(subscriptionId); // Delete the main subscription object
-
-    return res
-      .status(200)
-      .json({ message: "Unsubscribed successfully." });
-
+    await kv.del(subscriptionId);
+    return res.status(200).json({ message: "Unsubscribed successfully." });
   } catch (error) {
     console.error("Unhandled error in unsubscribe handler:", error);
     return res
